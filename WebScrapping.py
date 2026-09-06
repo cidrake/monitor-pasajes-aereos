@@ -110,15 +110,15 @@ def fetch_rss_feeds_sync():
     print("[+] Escaneando Feeds RSS...")
     for source, url in rss_sources.items():
         req = urllib.request.Request(
-        url, 
-        headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=10) as response:
+            url, 
+            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=10) as response:
             feed = feedparser.parse(response.read())
-    except Exception:
-        feed = feedparser.parse(url)
-            print(f"   -> Revisando: {feed.feed.get('title', url)} ({len(feed.entries)} entradas)")
+        except Exception:
+            feed = feedparser.parse(url)
+        print(f"   -> Revisando: {feed.feed.get('title', url)} ({len(feed.entries)} entradas)")
             for entry in feed.entries[:15]:
                 link = entry.link
                 title = entry.title
