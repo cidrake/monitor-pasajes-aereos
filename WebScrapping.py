@@ -133,20 +133,33 @@ async def fetch_playwright_sites():
     print("[+] Escaneando sitios dinámicos vía Playwright...")
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
-        context = await browser.new_context(ignore_https_errors=True)
+        # Seteamos un User-Agent real para evitar bloqueos
+        context = await browser.new_context(
+            ignore_https_errors=True,
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+        )
         page = await context.new_page()
         
         for sitio in sitios:
             try:
-                await page.goto(sitio["url"], wait_until="domcontentloaded", timeout=20000)
-                elements = await page.query_selector_all("h2 a, h3 a, .entry-title a, .post-title a")
+                await page.goto(sitio["url"], wait_until="domcontentloaded", timeout=25000)
+                # Pequeña espera para asegurar renderizado JS
+                await page.wait_for_timeout(3000)
+                
+                # Selector más amplio que captura los títulos y links de las ofertas
+                elements = await page.query_selector_all("article a, .entry-title a, .post-title a, h2 a, h3 a")
                 
                 encontrados = 0
+                urls_procesadas_sitio = set()
+                
                 for elem in elements:
                     text = await elem.inner_text()
                     href = await elem.get_attribute("href")
-                    if text and href:
+                    
+                    if text and href and len(text.strip()) > 10 and href not in urls_procesadas_sitio:
+                        urls_procesadas_sitio.add(href)
                         encontrados += 1
+                        
                         if href not in seen_urls and is_relevant_deal(text):
                             seen_urls.add(href)
                             send_telegram_alert(text.strip(), href, sitio["nombre"])
@@ -156,7 +169,7 @@ async def fetch_playwright_sites():
                 print(f"   -> [Playwright] Error al cargar {sitio['nombre']}: {e}")
                 
         await browser.close()
-
+        
 async def fetch_going_headless():
     url = "https://www.going.com/deals"
     print("[+] Escaneando Going vía Playwright...")
