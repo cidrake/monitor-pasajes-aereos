@@ -110,6 +110,7 @@ def fetch_rss_feeds_sync():
     for source, url in rss_sources.items():
         try:
             feed = feedparser.parse(url)
+            print(f"   -> Revisando: {feed.feed.get('title', url)} ({len(feed.entries)} entradas)")
             for entry in feed.entries[:15]:
                 link = entry.link
                 title = entry.title
