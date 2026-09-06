@@ -64,7 +64,9 @@ def is_relevant_deal(text: str) -> bool:
         
     return has_deal_keyword and has_origin and has_destination
 
-def send_telegram_alert(title: str, url: str, source: str, retries: int = 3):
+def send_telegram_alert(title: str, url: str, source: str, price: str = None, retries: int = 3):
+    price_text = f"💰 Precio: {price}\n" if price else ""
+    
     message = (
         f"🚨 ¡OFERTA / ERROR FARE DETECTADA! 🚨\n\n"
         f"📌 Fuente: {source}\n"
