@@ -150,13 +150,14 @@ async def fetch_playwright_sites():
                 page = await context.new_page()
                 try:
                     await page.route("**/*", lambda route: route.abort() 
-                        if route.request.resource_type in ["image", "stylesheet", "font", "media"] 
+                        if route.request.resource_type in ["image", "font", "media"] 
                         else route.continue_())
                     
                     await page.goto(sitio["url"], wait_until="domcontentloaded", timeout=8000)
                     
                     # Seleccionamos el contenedor padre (artículo/tarjeta)
-                    cards = await page.query_selector_all("article, .post, .card, .entry-preview")
+                    cards = await page.query_selector_all("article, .post, .card, .entry-preview, h2 a, h3 a")
+                    cards = cards[:5] # Procesa solo las 5 más recientes por sitio
                     
                     encontrados = 0
                     urls_procesadas = set()
