@@ -143,9 +143,13 @@ async def fetch_playwright_sites():
             for sitio in sitios:
                 page = await context.new_page()
                 try:
-                    # Timeout estricto de 10 segundos por cada URL
-                    await page.goto(sitio["url"], wait_until="domcontentloaded", timeout=10000)
-                    await page.wait_for_timeout(2000)
+                    # Bloquear recursos no esenciales para acelerar la carga de texto/links
+                    await page.route("**/*", lambda route: route.abort() 
+                        if route.request.resource_type in ["image", "stylesheet", "font", "media"] 
+                        else route.continue_())
+                    
+                    # Carga ligera con timeout de 8 segundos por sitio
+                    await page.goto(sitio["url"], wait_until="domcontentloaded", timeout=8000)
                     
                     elements = await page.query_selector_all("article a, .entry-title a, .post-title a, .card a, h2 a, h3 a, h4 a, .title a")
                     
