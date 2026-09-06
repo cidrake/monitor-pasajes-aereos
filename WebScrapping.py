@@ -130,43 +130,43 @@ async def fetch_playwright_sites():
         {"nombre": "Turismocity Blog", "url": "https://www.turismocity.com.ar/blog/"}
     ]
     
-    print("[+] Escaneando sitios dinámicos vía Playwright...")
+    print("[+] Escaneando sitios dinámicos vía Playwright...", flush=True)
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
-        # Seteamos un User-Agent real para evitar bloqueos
         context = await browser.new_context(
             ignore_https_errors=True,
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
         )
-        page = await context.new_page()
         
         for sitio in sitios:
+            page = await context.new_page()
             try:
-                await page.goto(sitio["url"], wait_until="domcontentloaded", timeout=25000)
-                # Pequeña espera para asegurar renderizado JS
-                await page.wait_for_timeout(3000)
+                # Carga rápida: domcontentloaded + timeout estricto de 12 segundos por sitio
+                await page.goto(sitio["url"], wait_until="domcontentloaded", timeout=12000)
                 
-                # Selector más amplio que captura los títulos y links de las ofertas
+                # Extraer enlaces
                 elements = await page.query_selector_all("article a, .entry-title a, .post-title a, .card a, h2 a, h3 a, h4 a, .title a")
                 
                 encontrados = 0
-                urls_procesadas_sitio = set()
+                urls_procesadas = set()
                 
                 for elem in elements:
                     text = await elem.inner_text()
                     href = await elem.get_attribute("href")
                     
-                    if text and href and len(text.strip()) > 10 and href not in urls_procesadas_sitio:
-                        urls_procesadas_sitio.add(href)
+                    if text and href and len(text.strip()) > 10 and href not in urls_procesadas:
+                        urls_procesadas.add(href)
                         encontrados += 1
                         
                         if href not in seen_urls and is_relevant_deal(text):
                             seen_urls.add(href)
                             send_telegram_alert(text.strip(), href, sitio["nombre"])
                             
-                print(f"   -> [Playwright] {sitio['nombre']}: {encontrados} entradas revisadas.")
-            except Exception as e:
-                print(f"   -> [Playwright] Error al cargar {sitio['nombre']}: {e}")
+                print(f"   -> [Playwright] {sitio['nombre']}: {encontrados} entradas revisadas.", flush=True)
+            except Exception:
+                print(f"   -> [Playwright] Timeout/Error en {sitio['nombre']}. Saltando a la siguiente web...", flush=True)
+            finally:
+                await page.close()
                 
         await browser.close()
         
