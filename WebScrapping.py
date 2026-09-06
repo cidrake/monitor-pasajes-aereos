@@ -147,7 +147,7 @@ async def fetch_playwright_sites():
                 await page.wait_for_timeout(3000)
                 
                 # Selector más amplio que captura los títulos y links de las ofertas
-                elements = await page.query_selector_all("article a, .entry-title a, .post-title a, h2 a, h3 a")
+                elements = await page.query_selector_all("article a, .entry-title a, .post-title a, .card a, h2 a, h3 a, h4 a, .title a")
                 
                 encontrados = 0
                 urls_procesadas_sitio = set()
