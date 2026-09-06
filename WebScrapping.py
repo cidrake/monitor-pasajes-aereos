@@ -131,44 +131,47 @@ async def fetch_playwright_sites():
     ]
     
     print("[+] Escaneando sitios dinámicos vía Playwright...", flush=True)
+    
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
-        context = await browser.new_context(
-            ignore_https_errors=True,
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-        )
-        
-        for sitio in sitios:
-            page = await context.new_page()
-            try:
-                # Carga rápida: domcontentloaded + timeout estricto de 12 segundos por sitio
-                await page.goto(sitio["url"], wait_until="domcontentloaded", timeout=12000)
-                
-                # Extraer enlaces
-                elements = await page.query_selector_all("article a, .entry-title a, .post-title a, .card a, h2 a, h3 a, h4 a, .title a")
-                
-                encontrados = 0
-                urls_procesadas = set()
-                
-                for elem in elements:
-                    text = await elem.inner_text()
-                    href = await elem.get_attribute("href")
+        try:
+            context = await browser.new_context(
+                ignore_https_errors=True,
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+            )
+            
+            for sitio in sitios:
+                page = await context.new_page()
+                try:
+                    # Timeout estricto de 10 segundos por sitio
+                    await page.goto(sitio["url"], wait_until="domcontentloaded", timeout=10000)
+                    await page.wait_for_timeout(2000)
                     
-                    if text and href and len(text.strip()) > 10 and href not in urls_procesadas:
-                        urls_procesadas.add(href)
-                        encontrados += 1
+                    elements = await page.query_selector_all("article a, .entry-title a, .post-title a, .card a, h2 a, h3 a, h4 a, .title a")
+                    
+                    encontrados = 0
+                    urls_procesadas = set()
+                    
+                    for elem in elements:
+                        text = await elem.inner_text()
+                        href = await elem.get_attribute("href")
                         
-                        if href not in seen_urls and is_relevant_deal(text):
-                            seen_urls.add(href)
-                            send_telegram_alert(text.strip(), href, sitio["nombre"])
+                        if text and href and len(text.strip()) > 10 and href not in urls_procesadas:
+                            urls_procesadas.add(href)
+                            encontrados += 1
                             
-                print(f"   -> [Playwright] {sitio['nombre']}: {encontrados} entradas revisadas.", flush=True)
-            except Exception:
-                print(f"   -> [Playwright] Timeout/Error en {sitio['nombre']}. Saltando a la siguiente web...", flush=True)
-            finally:
-                await page.close()
-                
-        await browser.close()
+                            if href not in seen_urls and is_relevant_deal(text):
+                                seen_urls.add(href)
+                                send_telegram_alert(text.strip(), href, sitio["nombre"])
+                                
+                    print(f"   -> [Playwright] {sitio['nombre']}: {encontrados} entradas revisadas.", flush=True)
+                except Exception as e:
+                    print(f"   -> [Playwright] Timeout/Error en {sitio['nombre']}. Saltando...", flush=True)
+                finally:
+                    await page.close()
+        finally:
+            # Asegura el cierre completo del proceso Chromium
+            await browser.close()
         
 async def fetch_going_headless():
     url = "https://www.going.com/deals"
