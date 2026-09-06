@@ -143,7 +143,7 @@ async def fetch_playwright_sites():
             for sitio in sitios:
                 page = await context.new_page()
                 try:
-                    # Timeout estricto de 10 segundos por sitio
+                    # Timeout estricto de 10 segundos por cada URL
                     await page.goto(sitio["url"], wait_until="domcontentloaded", timeout=10000)
                     await page.wait_for_timeout(2000)
                     
@@ -170,7 +170,6 @@ async def fetch_playwright_sites():
                 finally:
                     await page.close()
         finally:
-            # Asegura el cierre completo del proceso Chromium
             await browser.close()
         
 async def fetch_going_headless():
