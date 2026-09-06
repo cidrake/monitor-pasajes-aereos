@@ -116,7 +116,7 @@ def fetch_rss_feeds_sync():
         try:
             with urllib.request.urlopen(req, timeout=10) as response:
                 feed = feedparser.parse(response.read())
-            except Exception:
+        except Exception:
                 feed = feedparser.parse(url)
 
             print(f"   -> Revisando: {feed.feed.get('title', url)} ({len(feed.entries)} entradas)")
