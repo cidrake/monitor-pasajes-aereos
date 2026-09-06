@@ -218,37 +218,39 @@ threading.Thread(target=run_health_check_server, daemon=True).start()
 # BUCLE PRINCIPAL (5 MINUTOS)
 # -------------------------------------------------------------------
 async def main():
-    print("🚀 Monitor de Error Fares activado (Origen: Sudamérica | Destino: Europa / Asia)...")
+    print("🚀 Monitor de Error Fares activado (Origen: Sudamérica | Destino: Europa / Asia)...", flush=True)
     
     ciclo = 1
     while True:
         timestamp = time.strftime("%H:%M:%S")
-        print(f"\n==================== CICLO #{ciclo} [{timestamp}] ====================")
+        print(f"\n==================== CICLO #{ciclo} [{timestamp}] ====================", flush=True)
         
         # 1. Escaneo RSS
         try:
             await asyncio.to_thread(fetch_rss_feeds_sync)
         except Exception as e:
-            print(f"[!] Error en tarea RSS: {e}")
+            print(f"[!] Error en tarea RSS: {e}", flush=True)
             
-        # 2. Escaneo Secret Flying y Turismocity vía Playwright
+        # 2. Escaneo Secret Flying y Turismocity vía Playwright (máximo 45s)
         try:
-            await fetch_playwright_sites()
+            await asyncio.wait_for(fetch_playwright_sites(), timeout=45.0)
+        except asyncio.TimeoutError:
+            print("[!] Timeout en sitios Playwright (excedió 45s). Saltando...", flush=True)
         except Exception as e:
-            print(f"[!] Error en tarea Playwright sitios: {e}")
+            print(f"[!] Error en tarea Playwright sitios: {e}", flush=True)
 
-        # 3. Escaneo Going (máximo 15 segundos)
+        # 3. Escaneo Going (máximo 15s)
         try:
             await asyncio.wait_for(fetch_going_headless(), timeout=15.0)
         except asyncio.TimeoutError:
-            print("[!] Timeout en Going (excedió 15s). Saltando...")
+            print("[!] Timeout en Going (excedió 15s). Saltando...", flush=True)
         except Exception as e:
-            print(f"[!] Error en tarea Going: {e}")
+            print(f"[!] Error en tarea Going: {e}", flush=True)
             
-        print(f"[⏳] Ciclo #{ciclo} finalizado. Esperando 5 minutos para el próximo escaneo...")
+        print(f"[⏳] Ciclo #{ciclo} finalizado. Esperando 5 minutos para el próximo escaneo...", flush=True)
         ciclo += 1
         
-        # Pausa exacta de 5 minutos (300 segundos)
+        # Pausa de 5 minutos
         await asyncio.sleep(300)
 
 if __name__ == "__main__":
