@@ -128,7 +128,7 @@ def fetch_rss_feeds_sync():
                     if is_relevant_deal(title):
                         seen_urls.add(link)
                         send_telegram_alert(title, link, source)
-    except Exception as e:
+        except Exception as e:
             print(f"[!] Error leyendo RSS {source}: {e}")
 
 # -------------------------------------------------------------------
