@@ -1,3 +1,6 @@
+import os
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import threading
 import re
 import asyncio
 import requests
@@ -146,8 +149,23 @@ async def fetch_going_headless():
         finally:
             await browser.close()
 
+# Servidor HTTP ficticio para mantener feliz a Render
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"OK - Monitor Activo")
+
+def run_health_check_server():
+    port = int(os.environ.get("PORT", 10000))
+    server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
+    server.serve_forever()
+
+# Iniciar el servidor en un hilo secundario
+threading.Thread(target=run_health_check_server, daemon=True).start()
+
 # -------------------------------------------------------------------
-# BUCLE PRINCIPAL (30 MINUTOS)
+# BUCLE PRINCIPAL (5 MINUTOS)
 # -------------------------------------------------------------------
 async def main():
     print("🚀 Monitor de Error Fares activado (Origen: Sudamérica | Destino: Europa / Asia)...")
