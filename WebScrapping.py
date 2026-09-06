@@ -255,19 +255,19 @@ async def main():
         except Exception as e:
             print(f"[!] Error en tarea RSS: {e}", flush=True)
             
-        # 2. Escaneo Secret Flying y Turismocity vía Playwright (máximo 45s)
+        # 2. Escaneo Secret Flying y Turismocity vía Playwright (máximo 120s)
         try:
-            await asyncio.wait_for(fetch_playwright_sites(), timeout=45.0)
+            await asyncio.wait_for(fetch_playwright_sites(), timeout=120.0)
         except asyncio.TimeoutError:
-            print("[!] Timeout en sitios Playwright (excedió 45s). Saltando...", flush=True)
+            print("[!] Timeout en sitios Playwright (excedió 120s). Saltando...", flush=True)
         except Exception as e:
             print(f"[!] Error en tarea Playwright sitios: {e}", flush=True)
 
-        # 3. Escaneo Going (máximo 15s)
+        # 3. Escaneo Going (máximo 45s)
         try:
-            await asyncio.wait_for(fetch_going_headless(), timeout=15.0)
+            await asyncio.wait_for(fetch_going_headless(), timeout=45.0)
         except asyncio.TimeoutError:
-            print("[!] Timeout en Going (excedió 15s). Saltando...", flush=True)
+            print("[!] Timeout en Going (excedió 45s). Saltando...", flush=True)
         except Exception as e:
             print(f"[!] Error en tarea Going: {e}", flush=True)
             
