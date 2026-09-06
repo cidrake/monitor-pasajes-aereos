@@ -71,6 +71,7 @@ def send_telegram_alert(title: str, url: str, source: str, price: str = None, re
         f"🚨 ¡OFERTA / ERROR FARE DETECTADA! 🚨\n\n"
         f"📌 Fuente: {source}\n"
         f"✈️ Detalle: {title}\n\n"
+        f"{price_text}\n"
         f"🔗 Enlace: {url}"
     )
     
