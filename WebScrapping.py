@@ -94,7 +94,7 @@ def send_telegram_alert(title: str, url: str, source: str, retries: int = 3):
                 print(f"[!] Error de conexión con Telegram tras {retries} intentos.")
 
 # -------------------------------------------------------------------
-# 1. MONITOREO RSS (Secret Flying, Promociones Aéreas, Turismocity)
+# 1. MONITOREO RSS (FlyerTalk, HolidayPirates, Promociones Aéreas)
 # -------------------------------------------------------------------
 def fetch_rss_feeds_sync():
     rss_sources = {
@@ -105,18 +105,11 @@ def fetch_rss_feeds_sync():
 
     print("[+] Escaneando Feeds RSS...")
     for source, url in rss_sources.items():
-        req = urllib.request.Request(
-        url, 
-            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-    )
-    
         try:
-            with urllib.request.urlopen(req, timeout=10) as response:
-                feed = feedparser.parse(response.read())
-        except Exception:
-                feed = feedparser.parse(url)
-                print(f"   -> Revisando: {feed.feed.get('title', url)} ({len(feed.entries)} entradas)")
-    for entry in feed.entries[:15]:
+            feed = feedparser.parse(url)
+            print(f"   -> Revisando: {feed.feed.get('title', source)} ({len(feed.entries)} entradas)")
+            
+            for entry in feed.entries[:15]:
                 link = entry.link
                 title = entry.title
                 
@@ -128,8 +121,42 @@ def fetch_rss_feeds_sync():
             print(f"[!] Error leyendo RSS {source}: {e}")
 
 # -------------------------------------------------------------------
-# 2. SCRAPING GOING (PLAYWRIGHT)
+# 2. SCRAPING PLAYWRIGHT (Secret Flying, Turismocity, Going)
 # -------------------------------------------------------------------
+async def fetch_playwright_sites():
+    sitios = [
+        {"nombre": "Secret Flying (Euro)", "url": "https://www.secretflying.com/euro-deals/"},
+        {"nombre": "Secret Flying (Asia)", "url": "https://www.secretflying.com/asia-deals/"},
+        {"nombre": "Turismocity Blog", "url": "https://www.turismocity.com.ar/blog/"}
+    ]
+    
+    print("[+] Escaneando sitios dinámicos vía Playwright...")
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        context = await browser.new_context(ignore_https_errors=True)
+        page = await context.new_page()
+        
+        for sitio in sitios:
+            try:
+                await page.goto(sitio["url"], wait_until="domcontentloaded", timeout=20000)
+                elements = await page.query_selector_all("h2 a, h3 a, .entry-title a, .post-title a")
+                
+                encontrados = 0
+                for elem in elements:
+                    text = await elem.inner_text()
+                    href = await elem.get_attribute("href")
+                    if text and href:
+                        encontrados += 1
+                        if href not in seen_urls and is_relevant_deal(text):
+                            seen_urls.add(href)
+                            send_telegram_alert(text.strip(), href, sitio["nombre"])
+                            
+                print(f"   -> [Playwright] {sitio['nombre']}: {encontrados} entradas revisadas.")
+            except Exception as e:
+                print(f"   -> [Playwright] Error al cargar {sitio['nombre']}: {e}")
+                
+        await browser.close()
+
 async def fetch_going_headless():
     url = "https://www.going.com/deals"
     print("[+] Escaneando Going vía Playwright...")
@@ -191,7 +218,13 @@ async def main():
         except Exception as e:
             print(f"[!] Error en tarea RSS: {e}")
             
-        # 2. Escaneo Going (máximo 15 segundos)
+        # 2. Escaneo Secret Flying y Turismocity vía Playwright
+        try:
+            await fetch_playwright_sites()
+        except Exception as e:
+            print(f"[!] Error en tarea Playwright sitios: {e}")
+
+        # 3. Escaneo Going (máximo 15 segundos)
         try:
             await asyncio.wait_for(fetch_going_headless(), timeout=15.0)
         except asyncio.TimeoutError:
@@ -202,7 +235,7 @@ async def main():
         print(f"[⏳] Ciclo #{ciclo} finalizado. Esperando 5 minutos para el próximo escaneo...")
         ciclo += 1
         
-        # Pausa exacta de 5 minutos (1800 segundos)
+        # Pausa exacta de 5 minutos (300 segundos)
         await asyncio.sleep(300)
 
 if __name__ == "__main__":
