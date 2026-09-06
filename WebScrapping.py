@@ -119,7 +119,7 @@ def fetch_rss_feeds_sync():
         except Exception:
                 feed = feedparser.parse(url)
 
-            print(f"   -> Revisando: {feed.feed.get('title', url)} ({len(feed.entries)} entradas)")
+                print(f"   -> Revisando: {feed.feed.get('title', url)} ({len(feed.entries)} entradas)")
     for entry in feed.entries[:15]:
                 link = entry.link
                 title = entry.title
