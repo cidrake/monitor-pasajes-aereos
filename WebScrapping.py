@@ -98,13 +98,9 @@ def send_telegram_alert(title: str, url: str, source: str, retries: int = 3):
 # -------------------------------------------------------------------
 def fetch_rss_feeds_sync():
     rss_sources = {
-        "Secret Flying (General)": "https://www.secretflying.com/feed/",
-        "Secret Flying (Europa)": "https://www.secretflying.com/euro-deals/feed/",
-        "Secret Flying (Asia)": "https://www.secretflying.com/asia-deals/feed/",
         "FlyerTalk Mileage Run": "https://www.flyertalk.com/forum/external.php?type=rss2&forumids=372",
         "HolidayPirates UK": "https://www.holidaypirates.com/feed",
         "Promociones Aéreas AR": "https://www.promociones-aereas.com.ar/feed",
-        "Turismocity Blog AR": "https://www.turismocity.com.ar/blog/feed"
     }
 
     print("[+] Escaneando Feeds RSS...")
@@ -113,12 +109,12 @@ def fetch_rss_feeds_sync():
         url, 
             headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
     )
+    
         try:
             with urllib.request.urlopen(req, timeout=10) as response:
                 feed = feedparser.parse(response.read())
         except Exception:
                 feed = feedparser.parse(url)
-
                 print(f"   -> Revisando: {feed.feed.get('title', url)} ({len(feed.entries)} entradas)")
     for entry in feed.entries[:15]:
                 link = entry.link
@@ -128,7 +124,7 @@ def fetch_rss_feeds_sync():
                     if is_relevant_deal(title):
                         seen_urls.add(link)
                         send_telegram_alert(title, link, source)
-        except Exception as e:
+    except Exception as e:
             print(f"[!] Error leyendo RSS {source}: {e}")
 
 # -------------------------------------------------------------------
