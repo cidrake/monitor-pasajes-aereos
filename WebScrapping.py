@@ -8,6 +8,7 @@ import urllib.request
 import feedparser
 import urllib3
 import time
+import re
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
 
@@ -123,6 +124,11 @@ def fetch_rss_feeds_sync():
 # -------------------------------------------------------------------
 # 2. SCRAPING PLAYWRIGHT (Secret Flying, Turismocity, Going)
 # -------------------------------------------------------------------
+def extract_price(text):
+    """Busca patrones de moneda e importes en el texto."""
+    match = re.search(r'(\$|USD|EUR|€|ARS)\s?\d+([.,]\d+)?|\d+\s?(USD|EUR|€|ARS)', text, re.IGNORECASE)
+    return match.group(0) if match else "Precio no especificado"
+
 async def fetch_playwright_sites():
     sitios = [
         {"nombre": "Secret Flying (Euro)", "url": "https://www.secretflying.com/euro-deals/"},
@@ -143,32 +149,44 @@ async def fetch_playwright_sites():
             for sitio in sitios:
                 page = await context.new_page()
                 try:
-                    # Bloquear recursos no esenciales para acelerar la carga de texto/links
                     await page.route("**/*", lambda route: route.abort() 
                         if route.request.resource_type in ["image", "stylesheet", "font", "media"] 
                         else route.continue_())
                     
-                    # Carga ligera con timeout de 8 segundos por sitio
                     await page.goto(sitio["url"], wait_until="domcontentloaded", timeout=8000)
                     
-                    elements = await page.query_selector_all("article a, .entry-title a, .post-title a, .card a, h2 a, h3 a, h4 a, .title a")
+                    # Seleccionamos el contenedor padre (artículo/tarjeta)
+                    cards = await page.query_selector_all("article, .post, .card, .entry-preview")
                     
                     encontrados = 0
                     urls_procesadas = set()
                     
-                    for elem in elements:
-                        text = await elem.inner_text()
-                        href = await elem.get_attribute("href")
+                    for card in cards:
+                        # Extraer el enlace dentro de la tarjeta
+                        link_elem = await card.query_selector("a[href]")
+                        if not link_elem:
+                            continue
+                            
+                        href = await link_elem.get_attribute("href")
+                        card_text = await card.inner_text()
+                        card_text_clean = " ".join(card_text.split())
                         
-                        if text and href and len(text.strip()) > 10 and href not in urls_procesadas:
+                        if href and len(card_text_clean) > 10 and href not in urls_procesadas:
                             urls_procesadas.add(href)
                             encontrados += 1
                             
-                            if href not in seen_urls and is_relevant_deal(text):
+                            # Extraer precio del texto completo de la tarjeta
+                            precio = extract_price(card_text_clean)
+                            
+                            # Imprimir en consola cada entrada encontrada con su precio
+                            print(f"   -> [{sitio['nombre']}] Encontrado: {card_text_clean[:40]}... | Precio: {precio}", flush=True)
+                            
+                            if href not in seen_urls and is_relevant_deal(card_text_clean):
                                 seen_urls.add(href)
-                                send_telegram_alert(text.strip(), href, sitio["nombre"])
+                                alert_msg = f"{card_text_clean[:100]}...\n💰 Precio detectado: {precio}"
+                                send_telegram_alert(alert_msg, href, sitio["nombre"])
                                 
-                    print(f"   -> [Playwright] {sitio['nombre']}: {encontrados} entradas revisadas.", flush=True)
+                    print(f"   -> [Playwright] {sitio['nombre']}: {encontrados} entradas procesadas.", flush=True)
                 except Exception as e:
                     print(f"   -> [Playwright] Timeout/Error en {sitio['nombre']}. Saltando...", flush=True)
                 finally:
