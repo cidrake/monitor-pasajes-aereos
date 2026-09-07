@@ -51,18 +51,37 @@ DEAL_PATTERNS = [
     r"\b90%\b", r"\b80%\b", r"\b70%\b", r"\bhacked\b", r"\boferta\b", r"\bimperdible\b"
 ]
 
+DOMESTIC_DESTINATION_PATTERNS = [
+    r"\bbariloche\b", r"\bsalta\b", r"\biguazu\b", r"\biguazú\b", r"\bushuaia\b", r"\bcalafate\b", 
+    r"\btucuman\b", r"\btucumán\b", r"\bneuquen\b", r"\bneuquén\b", r"\bjujuy\b", r"\bsan\s+juan\b", 
+    r"\bposadas\b", r"\bbahia\s+blanca\b", r"\bbahía\s+blanca\b", r"\bcomodoro\s+rivadavia\b", 
+    r"\btrelew\b", r"\bpuerto\s+madryn\b", r"\bmendoza\b", r"\bcordoba\b", r"\bcórdoba\b", 
+    r"\bcabotaje\b", r"\bnacionales\b"
+]
+
 seen_urls = set()
 
 def is_relevant_deal(text: str) -> bool:
     text_lower = text.lower()
+    
+    # 1. Regla de "Error Fare" o "Glitch" (Acepta si encuentra cualquier destino internacional o nacional)
+    has_any_destination = any(re.search(p, text_lower) for p in DESTINATION_PATTERNS + DOMESTIC_DESTINATION_PATTERNS)
+    if re.search(r"\berror\s*fare\b|\bglitch\b", text_lower) and has_any_destination:
+        return True
+
+    # 2. Búsqueda de patrones generales
     has_deal_keyword = any(re.search(p, text_lower) for p in DEAL_PATTERNS)
     has_origin = any(re.search(p, text_lower) for p in ORIGIN_PATTERNS)
-    has_destination = any(re.search(p, text_lower) for p in DESTINATION_PATTERNS)
+    has_intl_destination = any(re.search(p, text_lower) for p in DESTINATION_PATTERNS)
     
-    if re.search(r"\berror\s*fare\b|\bglitch\b", text_lower) and has_destination:
-        return True
-        
-    return has_deal_keyword and has_origin and has_destination
+    # 3. Validación de Vuelos Internacionales (Origen Arg + Destino Intl + Keyword)
+    is_intl_deal = has_deal_keyword and has_origin and has_intl_destination
+
+    # 4. Validación de Vuelos Nacionales / Cabotaje (Origen Arg + Destino Nacional, o frase explícita de cabotaje)
+    has_domestic_destination = any(re.search(p, text_lower) for p in DOMESTIC_DESTINATION_PATTERNS)
+    is_domestic_deal = (has_origin and has_domestic_destination) or re.search(r"\bvuelos?\s+por\s+argentina\b|\bcabotaje\b", text_lower)
+
+    return is_intl_deal or is_domestic_deal
 
 def send_telegram_alert(title: str, url: str, source: str, price: str = None, retries: int = 3):
     price_text = f"💰 Precio: {price}\n" if price else ""
