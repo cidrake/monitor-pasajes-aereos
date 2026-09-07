@@ -360,8 +360,12 @@ async def main():
 
         # Al terminar todas las tareas del ciclo:
         try:
-            timestamp_arg = datetime.now(TZ_ARG).strftime("%H:%M:%S")
-            mensaje_ping = f"✅ Ciclo #{ciclo} finalizado a las {timestamp} hs (ARG). Bot activo."
+            timestamp = datetime.now(TZ_ARG).strftime("%H:%M:%S")
+
+            print(f"[⏳] Ciclo #{ciclo} finalizado a las {timestamp} hs (ARG). Esperando 5 minutos para el próximo escaneo...", flush=True)
+
+        try:
+            mensaje_ping = f"✅ Ciclo #{ciclo} finalizado a las {timestamp} hs. Bot activo."
             send_telegram_alert(title=mensaje_ping, url="", source="Monitor Render")
         except Exception as e:
             print(f"[!] Error al enviar heartbeat a Telegram: {e}", flush=True)
