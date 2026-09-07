@@ -11,6 +11,8 @@ import time
 import re
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
+from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 
 # Desactivar advertencias SSL
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -18,8 +20,16 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # -------------------------------------------------------------------
 # CONFIGURACIÓN DE TELEGRAM
 # -------------------------------------------------------------------
+TZ_ARG = timezone(timedelta(hours=-3))
+
 TELEGRAM_BOT_TOKEN = "8913372178:AAGHVEh8g9AnNvvC-UAwrYmFVvOWH9maL0k"  # Reemplazar con tu Token completo
 TELEGRAM_CHAT_ID = "383871975"            # Tu Chat ID verificado
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "es-AR,es;q=0.9,en-US;q=0.8,en;q=0.7",
+}
 
 # -------------------------------------------------------------------
 # MATRIZ DE FILTRADO (SUDAMÉRICA -> EUROPA / ASIA)
@@ -52,7 +62,7 @@ DEAL_PATTERNS = [
 ]
 
 DOMESTIC_DESTINATION_PATTERNS = [
-    r"\bbariloche\b", r"\bsalta\b", r"\biguazu\b", r"\biguazú\b", r"\bushuaia\b", r"\bcalafate\b", 
+    r"\bbariloche\b", r"\bsalta\b", r"\biguazu\b", r"\biguazú\b", r"\bushuaia\b", r"\bcalafate\b", r"\bcatamarca\b" 
     r"\btucuman\b", r"\btucumán\b", r"\bneuquen\b", r"\bneuquén\b", r"\bjujuy\b", r"\bsan\s+juan\b", 
     r"\bposadas\b", r"\bbahia\s+blanca\b", r"\bbahía\s+blanca\b", r"\bcomodoro\s+rivadavia\b", 
     r"\btrelew\b", r"\bpuerto\s+madryn\b", r"\bmendoza\b", r"\bcordoba\b", r"\bcórdoba\b", 
@@ -83,6 +93,107 @@ def is_relevant_deal(text: str) -> bool:
 
     return is_intl_deal or is_domestic_deal
 
+def check_and_log_deal(title: str, price: str, url: str, source: str):
+    hora_arg = datetime.now(ZoneInfo("America/Argentina/Buenos_Aires")).strftime("%H:%M:%S")
+    title_lower = title.lower()
+    
+    # 1. Si no viene precio separado, intentamos extraerlo del título
+    extracted_price = price
+    if not extracted_price:
+        # Expresión regular ajustada para capturar U$D 69, U$D 888, $120.000, etc.
+        price_regex = r'(?:u\$d|usd|u\$s|\$|€)\s?[\d\.\,]+'
+        match = re.search(price_regex, title, re.IGNORECASE)
+        if match:
+            extracted_price = match.group(0)
+
+    # 2. Palabras clave de origen y destino
+    origenes_arg = [
+        "buenos aires", "ezeiza", "aeroparque", "cordoba", "córdoba", 
+        "mendoza", "argentina", "rosario", "salida desde", "desde"
+    ]
+    destinos = [
+        "bariloche", "salta", "iguazu", "iguazú", "ushuaia", "calafate", "tucuman", "tucumán"
+        "jujuy", "mendoza", "cordoba", "córdoba", "neuquen", "neuquén", "catamarca", "san juan", "salta"
+        "cabotaje", "nacionales", "europa", "asia", "madrid", "barcelona", 
+        "roma", "milan", "milán", "paris", "parís", "londres", "tokio", 
+        "tokyo", "bangkok", "estambul", "rio", "río", "miami"
+    ]
+
+    # Comprobar si menciona Argentina o algún destino de la lista
+    es_origen_arg = any(o in title_lower for o in origenes_arg)
+    es_destino_valido = any(d in title_lower for d in destinos)
+
+    # 3. Impresión en consola (Para monitorear precios de mercado)
+    # Si la fuente es un blog argentino (Sir Chandler, Promociones Aéreas), mostramos directamente el post
+    fuentes_locales = ["promociones aéreas", "sir chandler", "ratamundo", "infoviajera"]
+    es_fuente_local = any(f in source.lower() for f in fuentes_locales)
+
+    if (es_origen_arg and es_destino_valido) or es_fuente_local:
+        precio_str = f" | 💰 {extracted_price}" if extracted_price else " | 💰 (Sin precio en título)"
+        print(f"[{hora_arg}] ✈️ [MONITOR] {source}: {title[:85]}...{precio_str}", flush=True)
+
+        # 4. Evaluación de alerta estricta para Telegram
+        if is_relevant_deal(title):
+            print(f"[{hora_arg}] 🚨 -> ¡OFERTA RELEVANTE! Enviando a Telegram...", flush=True)
+            send_telegram_alert(title=title, url=url, source=source, price=extracted_price)
+
+def scan_rss_feeds():
+    print("[+] Escaneando Feeds RSS...", flush=True)
+    for source, url in FEEDS_RSS.items():
+        try:
+            # Opción recomendada: Descargar contenido con requests usando HEADERS
+            response = requests.get(url, headers=HEADERS, timeout=15)
+            if response.status_code == 200:
+                feed = feedparser.parse(response.content)
+            else:
+                # Fallback pasando agent directamente
+                feed = feedparser.parse(url, agent=HEADERS["User-Agent"])
+                
+            print(f"  -> Revisando: {source} ({len(feed.entries)} entradas)", flush=True)
+            for entry in feed.entries[:15]:
+                link = entry.get("link", "")
+                title = entry.get("title", "")
+                
+                if link and link not in seen_urls:
+                    seen_urls.add(link)
+                    check_and_log_deal(title=title, price=None, url=link, source=source)
+        except Exception as e:
+            print(f"  [!] Error escaneando {source}: {e}", flush=True)
+
+def scan_dynamic_sites():
+    print("[+] Escaneando sitios dinámicos vía Playwright...", flush=True)
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            context = browser.new_context(
+                user_agent=HEADERS["User-Agent"],
+                extra_http_headers={"Accept-Language": HEADERS["Accept-Language"]}
+            )
+            page = context.new_page()
+            
+            try:
+                page.goto("https://www.secretflying.com/euro-deals/", timeout=30000, wait_until="domcontentloaded")
+                articles = page.query_selector_all("article")
+                processed = 0
+                for article in articles[:10]:
+                    title_elem = article.query_selector("h2, h3, .entry-title")
+                    link_elem = article.query_selector("a")
+                    if title_elem and link_elem:
+                        title = title_elem.inner_text().strip()
+                        link = link_elem.get_attribute("href")
+                        if link and link not in seen_urls:
+                            seen_urls.add(link)
+                            check_and_log_deal(title=title, price=None, url=link, source="Secret Flying (Euro)")
+                            processed += 1
+                print(f"  -> [Playwright] Secret Flying (Euro): {processed} entradas procesadas.", flush=True)
+            except Exception as e:
+                print(f"  -> [Playwright] Timeout/Error en Secret Flying (Euro). Saltando...", flush=True)
+                
+            context.close()
+            browser.close()
+    except Exception as e:
+        print(f"  [!] Error general en Playwright: {e}", flush=True)
+    
 def send_telegram_alert(title: str, url: str = "", source: str = "Sistema", price: str = None, retries: int = 3):
     # Formatear la línea de precio si está presente
     price_line = f"💰 Precio: {price}\n" if price else ""
@@ -145,12 +256,11 @@ def fetch_rss_feeds_sync():
                 title = entry.title
                 
                 if link not in seen_urls:
-                    if is_relevant_deal(title):
-                        seen_urls.add(link)
-                        send_telegram_alert(title, link, source)
+                    seen_urls.add(link)
+                    check_and_log_deal(title=title, price=None, url=link, source=source)
+                    
         except Exception as e:
             print(f"[!] Error leyendo RSS {source}: {e}")
-
 # -------------------------------------------------------------------
 # 2. SCRAPING PLAYWRIGHT (Secret Flying, Turismocity, Going)
 # -------------------------------------------------------------------
@@ -172,8 +282,8 @@ async def fetch_playwright_sites():
         browser = await p.chromium.launch(headless=True)
         try:
             context = await browser.new_context(
-                ignore_https_errors=True,
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+                user_agent=HEADERS["User-Agent"],
+                extra_http_headers={"Accept-Language": HEADERS["Accept-Language"]}
             )
             
             for sitio in sitios:
@@ -217,10 +327,9 @@ async def fetch_playwright_sites():
                             # Imprimir en consola cada entrada encontrada con su precio
                             print(f"   -> [{sitio['nombre']}] Encontrado: {card_text_clean[:40]}... | Precio: {precio}", flush=True)
                             
-                            if href not in seen_urls and is_relevant_deal(card_text_clean):
+                            if href not in seen_urls:
                                 seen_urls.add(href)
-                                alert_msg = f"{card_text_clean[:100]}...\n💰 Precio detectado: {precio}"
-                                send_telegram_alert(alert_msg, href, sitio["nombre"])
+                                check_and_log_deal(title=card_text_clean, price=precio, url=href, source=sitio["nombre"])
                                 
                     print(f"   -> [Playwright] {sitio['nombre']}: {encontrados} entradas procesadas.", flush=True)
                 except Exception as e:
@@ -313,7 +422,7 @@ async def main():
         # Al terminar todas las tareas del ciclo:
         try:
             mensaje_ping = f"✅ Ciclo #{ciclo} finalizado correctamente a las {timestamp}. Bot activo."
-            send_telegram_alert(title=mensaje_ping, url="https://render.com", source="Monitor Render")
+            send_telegram_alert(title=mensaje_ping, url="", source="Monitor Render")
         except Exception as e:
             print(f"[!] Error al enviar heartbeat a Telegram: {e}", flush=True)
     
