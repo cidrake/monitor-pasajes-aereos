@@ -123,9 +123,15 @@ def send_telegram_alert(title: str, url: str = "", source: str = "Sistema", pric
 # -------------------------------------------------------------------
 def fetch_rss_feeds_sync():
     rss_sources = {
+        # Fuentes Internacionales
         "FlyerTalk Mileage Run": "https://www.flyertalk.com/forum/external.php?type=rss2&forumids=372",
         "HolidayPirates UK": "https://www.holidaypirates.com/feed",
-        "Promociones Aéreas AR": "https://www.promociones-aereas.com.ar/feed",
+
+        # Fuentes Locales (Argentina y Cabotaje)
+        "Promociones Aéreas": "https://promociones-aereas.com.ar/feed",
+        "Sir Chandler": "https://www.sirchandler.com.ar/feed/",
+        "Ratamundo": "https://ratamundo.com/feed/",
+        "Infoviajera": "https://www.infoviajera.com/feed/",
     }
 
     print("[+] Escaneando Feeds RSS...")
