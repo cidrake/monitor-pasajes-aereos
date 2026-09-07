@@ -11,7 +11,7 @@ import time
 import re
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 
 # Declaración global de la zona horaria de Argentina (UTC-3)
