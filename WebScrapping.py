@@ -14,6 +14,9 @@ from playwright.async_api import async_playwright
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+# Declaración global de la zona horaria de Argentina (UTC-3)
+TZ_ARG = timezone(timedelta(hours=-3))
+
 # Desactivar advertencias SSL
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -86,14 +89,15 @@ def is_relevant_deal(text: str) -> bool:
     return is_intl_deal or is_domestic_deal
 
 def check_and_log_deal(title: str, price: str, url: str, source: str):
-    hora_arg = datetime.now(ZoneInfo("America/Argentina/Buenos_Aires")).strftime("%H:%M:%S")
+    hora_arg = datetime.now(TZ_ARG).strftime("%H:%M:%S")
     title_lower = title.lower()
     
-    # 1. Si no viene precio separado, intentamos extraerlo del título
+    # --- AQUÍ VA LA REGEX DE PRECIO ---
     extracted_price = price
     if not extracted_price:
-        # Busca patrones tipo $120.000, USD 400, u$s 500, €450
-        match = re.search(r'(\$|usd|u\$s|€)\s?[\d\.\,]+', title, re.IGNORECASE)
+        # Expresión regular ajustada para capturar U$D 69, U$D 888, $120.000, etc.
+        price_regex = r'(?:u\$d|usd|u\$s|\$|€)\s?[\d\.\,]+'
+        match = re.search(price_regex, title, re.IGNORECASE)
         if match:
             extracted_price = match.group(0)
 
