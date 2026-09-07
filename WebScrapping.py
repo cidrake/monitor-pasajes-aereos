@@ -84,6 +84,7 @@ def is_relevant_deal(text: str) -> bool:
     return is_intl_deal or is_domestic_deal
 
 def check_and_log_deal(title: str, price: str, url: str, source: str):
+    hora_arg = datetime.now(ZoneInfo("America/Argentina/Buenos_Aires")).strftime("%H:%M:%S")
     title_lower = title.lower()
     
     # Orígenes en Argentina
@@ -99,11 +100,11 @@ def check_and_log_deal(title: str, price: str, url: str, source: str):
     # Log en consola si el vuelo sale de Argentina y va a uno de los destinos
     if tiene_origen_arg and tiene_destino_valido:
         precio_fmt = f" | 💰 Precio: {price}" if price else ""
-        print(f"  ✈️ [MONITOR AR] {source}: {title[:80]}...{precio_fmt}", flush=True)
+        print(f"[{hora_arg}] ✈️ [MONITOR AR] {source}: {title[:80]}...{precio_fmt}", flush=True)
         
         # Enviar a Telegram solo si pasa el filtro estricto de oferta
         if is_relevant_deal(title):
-            print(f"     🚨 -> ¡OFERTA DETECTADA! Enviando a Telegram...", flush=True)
+            print(f"[{hora_arg}] 🚨 -> ¡OFERTA DETECTADA! Enviando a Telegram...", flush=True)
             send_telegram_alert(title=title, url=url, source=source, price=price)
             
 def send_telegram_alert(title: str, url: str = "", source: str = "Sistema", price: str = None, retries: int = 3):
