@@ -182,6 +182,8 @@ async def fetch_playwright_sites():
                         "article, .post, .card, .entry-preview, "
                         ".blog-post, .post-item, .entry, "              # Específicos de blogs en español
                         "h2.entry-title, h3.entry-title, h2 a, h3 a"    # Fallback directo a títulos
+                    )
+                    
                     cards = cards[:10]  # Procesar hasta 10 entradas por sitio
                     
                     encontrados = 0
