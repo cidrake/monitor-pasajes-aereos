@@ -11,6 +11,8 @@ import time
 import re
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 # Desactivar advertencias SSL
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -87,25 +89,44 @@ def check_and_log_deal(title: str, price: str, url: str, source: str):
     hora_arg = datetime.now(ZoneInfo("America/Argentina/Buenos_Aires")).strftime("%H:%M:%S")
     title_lower = title.lower()
     
-    # Orígenes en Argentina
-    origenes_arg = ["buenos aires", "ezeiza", "aeroparque", "cordoba", "córdoba", "mendoza", "argentina", "rosario"]
-    tiene_origen_arg = any(o in title_lower for o in origenes_arg)
-    
-    # Destinos de interés
-    destinos_intl = ["europa", "asia", "madrid", "barcelona", "roma", "milan", "milán", "paris", "parís", "londres", "tokio", "tokyo", "bangkok", "estambul"]
-    destinos_nac = ["bariloche", "salta", "catamarca", "iguazu", "iguazú", "ushuaia", "calafate", "jujuy", "mendoza", "san juan", "tucuman", "tucumán", "cordoba", "córdoba", "neuquen", "neuquén", "cabotaje", "nacionales"]
-    
-    tiene_destino_valido = any(d in title_lower for d in destinos_intl + destinos_nac)
-    
-    # Log en consola si el vuelo sale de Argentina y va a uno de los destinos
-    if tiene_origen_arg and tiene_destino_valido:
-        precio_fmt = f" | 💰 Precio: {price}" if price else ""
-        print(f"[{hora_arg}] ✈️ [MONITOR AR] {source}: {title[:80]}...{precio_fmt}", flush=True)
-        
-        # Enviar a Telegram solo si pasa el filtro estricto de oferta
+    # 1. Si no viene precio separado, intentamos extraerlo del título
+    extracted_price = price
+    if not extracted_price:
+        # Busca patrones tipo $120.000, USD 400, u$s 500, €450
+        match = re.search(r'(\$|usd|u\$s|€)\s?[\d\.\,]+', title, re.IGNORECASE)
+        if match:
+            extracted_price = match.group(0)
+
+    # 2. Palabras clave de origen y destino
+    origenes_arg = [
+        "buenos aires", "ezeiza", "aeroparque", "cordoba", "córdoba", 
+        "mendoza", "argentina", "rosario", "salida desde", "desde"
+    ]
+    destinos = [
+        "bariloche", "salta", "iguazu", "iguazú", "ushuaia", "calafate", 
+        "jujuy", "mendoza", "cordoba", "córdoba", "neuquen", "neuquén", 
+        "cabotaje", "nacionales", "europa", "asia", "madrid", "barcelona", 
+        "roma", "milan", "milán", "paris", "parís", "londres", "tokio", 
+        "tokyo", "bangkok", "estambul", "rio", "río", "miami"
+    ]
+
+    # Comprobar si menciona Argentina o algún destino de la lista
+    es_origen_arg = any(o in title_lower for o in origenes_arg)
+    es_destino_valido = any(d in title_lower for d in destinos)
+
+    # 3. Impresión en consola (Para monitorear precios de mercado)
+    # Si la fuente es un blog argentino (Sir Chandler, Promociones Aéreas), mostramos directamente el post
+    fuentes_locales = ["promociones aéreas", "sir chandler", "ratamundo", "infoviajera"]
+    es_fuente_local = any(f in source.lower() for f in fuentes_locales)
+
+    if (es_origen_arg and es_destino_valido) or es_fuente_local:
+        precio_str = f" | 💰 {extracted_price}" if extracted_price else " | 💰 (Sin precio en título)"
+        print(f"[{hora_arg}] ✈️ [MONITOR] {source}: {title[:85]}...{precio_str}", flush=True)
+
+        # 4. Evaluación de alerta estricta para Telegram
         if is_relevant_deal(title):
-            print(f"[{hora_arg}] 🚨 -> ¡OFERTA DETECTADA! Enviando a Telegram...", flush=True)
-            send_telegram_alert(title=title, url=url, source=source, price=price)
+            print(f"[{hora_arg}] 🚨 -> ¡OFERTA RELEVANTE! Enviando a Telegram...", flush=True)
+            send_telegram_alert(title=title, url=url, source=source, price=extracted_price)
             
 def send_telegram_alert(title: str, url: str = "", source: str = "Sistema", price: str = None, retries: int = 3):
     # Formatear la línea de precio si está presente
