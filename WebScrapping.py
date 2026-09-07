@@ -83,6 +83,29 @@ def is_relevant_deal(text: str) -> bool:
 
     return is_intl_deal or is_domestic_deal
 
+def check_and_log_deal(title: str, price: str, url: str, source: str):
+    title_lower = title.lower()
+    
+    # Orígenes en Argentina
+    origenes_arg = ["buenos aires", "ezeiza", "aeroparque", "cordoba", "córdoba", "mendoza", "argentina", "rosario"]
+    tiene_origen_arg = any(o in title_lower for o in origenes_arg)
+    
+    # Destinos de interés
+    destinos_intl = ["europa", "asia", "madrid", "barcelona", "roma", "milan", "milán", "paris", "parís", "londres", "tokio", "tokyo", "bangkok", "estambul"]
+    destinos_nac = ["bariloche", "salta", "catamarca", "iguazu", "iguazú", "ushuaia", "calafate", "jujuy", "mendoza", "san juan", "tucuman", "tucumán", "cordoba", "córdoba", "neuquen", "neuquén", "cabotaje", "nacionales"]
+    
+    tiene_destino_valido = any(d in title_lower for d in destinos_intl + destinos_nac)
+    
+    # Log en consola si el vuelo sale de Argentina y va a uno de los destinos
+    if tiene_origen_arg and tiene_destino_valido:
+        precio_fmt = f" | 💰 Precio: {price}" if price else ""
+        print(f"  ✈️ [MONITOR AR] {source}: {title[:80]}...{precio_fmt}", flush=True)
+        
+        # Enviar a Telegram solo si pasa el filtro estricto de oferta
+        if is_relevant_deal(title):
+            print(f"     🚨 -> ¡OFERTA DETECTADA! Enviando a Telegram...", flush=True)
+            send_telegram_alert(title=title, url=url, source=source, price=price)
+            
 def send_telegram_alert(title: str, url: str = "", source: str = "Sistema", price: str = None, retries: int = 3):
     # Formatear la línea de precio si está presente
     price_line = f"💰 Precio: {price}\n" if price else ""
@@ -145,9 +168,9 @@ def fetch_rss_feeds_sync():
                 title = entry.title
                 
                 if link not in seen_urls:
-                    if is_relevant_deal(title):
-                        seen_urls.add(link)
-                        send_telegram_alert(title, link, source)
+                    seen_urls.add(link)
+                    check_and_log_deal(title=title, price=None, url=link, source=source)
+                    
         except Exception as e:
             print(f"[!] Error leyendo RSS {source}: {e}")
 
@@ -217,10 +240,9 @@ async def fetch_playwright_sites():
                             # Imprimir en consola cada entrada encontrada con su precio
                             print(f"   -> [{sitio['nombre']}] Encontrado: {card_text_clean[:40]}... | Precio: {precio}", flush=True)
                             
-                            if href not in seen_urls and is_relevant_deal(card_text_clean):
+                            if href not in seen_urls:
                                 seen_urls.add(href)
-                                alert_msg = f"{card_text_clean[:100]}...\n💰 Precio detectado: {precio}"
-                                send_telegram_alert(alert_msg, href, sitio["nombre"])
+                                check_and_log_deal(title=card_text_clean, price=precio, url=href, source=sitio["nombre"])
                                 
                     print(f"   -> [Playwright] {sitio['nombre']}: {encontrados} entradas procesadas.", flush=True)
                 except Exception as e:
