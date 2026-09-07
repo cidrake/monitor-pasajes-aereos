@@ -301,7 +301,14 @@ async def main():
             
         print(f"[⏳] Ciclo #{ciclo} finalizado. Esperando 5 minutos para el próximo escaneo...", flush=True)
         ciclo += 1
-        
+
+        # Al terminar todas las tareas del ciclo:
+        try:
+            mensaje_ping = f"✅ Ciclo #{ciclo} finalizado correctamente a las {timestamp}. Bot activo."
+            send_telegram_alert(title=mensaje_ping, url="https://render.com", source="Monitor Render")
+        except Exception as e:
+            print(f"[!] Error al enviar heartbeat a Telegram: {e}", flush=True)
+    
         # Pausa de 5 minutos
         await asyncio.sleep(300)
 
