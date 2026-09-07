@@ -83,15 +83,17 @@ def is_relevant_deal(text: str) -> bool:
 
     return is_intl_deal or is_domestic_deal
 
-def send_telegram_alert(title: str, url: str, source: str, price: str = None, retries: int = 3):
-    price_text = f"💰 Precio: {price}\n" if price else ""
+def send_telegram_alert(title: str, url: str = "", source: str = "Sistema", price: str = None, retries: int = 3):
+    # Formatear la línea de precio si está presente
+    price_line = f"💰 Precio: {price}\n" if price else ""
+    url_line = f"🔗 Enlace: {url}\n" if url else ""
     
     message = (
-        f"🚨 ¡OFERTA / ERROR FARE DETECTADA! 🚨\n\n"
+        f"🚨 ¡OFERTA / ALERTA DETECTADA! 🚨\n\n"
         f"📌 Fuente: {source}\n"
-        f"✈️ Detalle: {title}\n\n"
-        f"{price_line}\n"
-        f"🔗 Enlace: {url}"
+        f"✈️ Detalle: {title}\n"
+        f"{price_line}"
+        f"{url_line}"
     )
     
     telegram_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
