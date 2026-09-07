@@ -178,8 +178,11 @@ async def fetch_playwright_sites():
                     await page.goto(sitio["url"], wait_until="domcontentloaded", timeout=8000)
                     
                     # Seleccionamos el contenedor padre (artículo/tarjeta)
-                    cards = await page.query_selector_all("article, .post, .card, .entry-preview, h2 a, h3 a")
-                    cards = cards[:5] # Procesa solo las 5 más recientes por sitio
+                    cards = await page.query_selector_all(
+                        "article, .post, .card, .entry-preview, "
+                        ".blog-post, .post-item, .entry, "              # Específicos de blogs en español
+                        "h2.entry-title, h3.entry-title, h2 a, h3 a"    # Fallback directo a títulos
+                    cards = cards[:10]  # Procesar hasta 10 entradas por sitio
                     
                     encontrados = 0
                     urls_procesadas = set()
