@@ -330,8 +330,8 @@ async def main():
     
     ciclo = 1
     while True:
-        timestamp = time.strftime("%H:%M:%S")
-        print(f"\n==================== CICLO #{ciclo} [{timestamp}] ====================", flush=True)
+        hora_argentina = datetime.now(TZ_ARG).strftime("%H:%M:%S")
+        print(f"\n==================== CICLO #{ciclo} [{hora_argentina}] ====================", flush=True)
         
         # 1. Escaneo RSS
         try:
@@ -360,6 +360,7 @@ async def main():
 
         # Al terminar todas las tareas del ciclo:
         try:
+            timestamp_arg = datetime.now(TZ_ARG).strftime("%H:%M:%S")
             mensaje_ping = f"✅ Ciclo #{ciclo} finalizado correctamente a las {timestamp}. Bot activo."
             send_telegram_alert(title=mensaje_ping, url="", source="Monitor Render")
         except Exception as e:
