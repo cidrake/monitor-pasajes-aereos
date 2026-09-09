@@ -13,6 +13,7 @@ from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
 from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
+import asyncio
 from telethon import TelegramClient, events
 
 # Desactivar advertencias SSL
@@ -75,13 +76,12 @@ DOMESTIC_DESTINATION_PATTERNS = [
 
 CHANNELS_TO_MONITOR = [
     "PromocionesAereas",      # Ejemplo de canal de ofertas
-    "Ratamundo",               # Ratamundo
-    "AirTrackBot",            #AirTrackBot
+    "AirTrack_Bot",            #AirTrackBot
     "turismocityar",            #turismocityar
     "guialowcost",                #guialowcost
     "viajerospiratas",        #viajerospiratas
-    "holidayguru_es",        #holidayguru_es 
-    "SecretFlying"             # Ejemplo internacional
+    "holidaygurues",        #holidayguru_es 
+    "SecretFlights"             # Ejemplo internacional
 ]
 
 seen_urls = set()
@@ -252,27 +252,37 @@ def send_telegram_alert(title: str, url: str = "", source: str = "Sistema", pric
 # ==========================================
 client = TelegramClient("session_monitor", API_ID, API_HASH)
 
-@client.on(events.NewMessage(chats=CHANNELS_TO_MONITOR))
-async def handle_new_channel_message(event):
-    message_text = event.message.text
-    if not message_text:
+# 2. Función asíncrona de inicio y registro de eventos
+async def iniciar_telegram():
+    await client.start()
+    
+    target_chats = []
+    for channel in CHANNELS_TO_MONITOR:
+        try:
+            entity = await client.get_entity(channel)
+            target_chats.append(entity)
+            print(f"[+] Monitoreando canal: {channel}")
+        except Exception as e:
+            print(f"[!] Error al resolver el canal '{channel}': {e}")
+
+    if not target_chats:
+        print("[!] No se pudo registrar ningún canal válido.")
         return
+
+    @client.on(events.NewMessage(chats=target_chats))
+    async def handler(event):
+        texto = event.raw_text
+        print(f"[+] Nuevo mensaje recibido en Telegram: {texto[:50]}...")
+        # Aquí procesás la oferta o llamás a tu función de envío por bot
+
+    print("[+] Listener de Telegram iniciado correctamente.")
+    await client.run_until_disconnected()
+
+# 3. Punto de entrada principal
+if __name__ == '__main__':
+    # Ejecuta el bucle de eventos asíncrono para Telethon
+    asyncio.run(iniciar_telegram())
         
-    lines = message_text.strip().split("\n")
-    title = lines[0] if lines else "Oferta de Telegram"
-    
-    chat = await event.get_chat()
-    channel_username = chat.username
-    message_id = event.message.id
-    post_url = f"https://t.me/{channel_username}/{message_id}"
-    
-    check_and_log_deal(
-        title=title,
-        price=None,
-        url=post_url,
-        source=f"Telegram: @{channel_username}"
-    )
-    
 # -------------------------------------------------------------------
 # 1. MONITOREO RSS (FlyerTalk, HolidayPirates, Promociones Aéreas)
 # -------------------------------------------------------------------
