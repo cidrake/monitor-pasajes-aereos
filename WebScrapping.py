@@ -75,7 +75,6 @@ DOMESTIC_DESTINATION_PATTERNS = [
 
 CHANNELS_TO_MONITOR = [
     "PromocionesAereas",      # Ejemplo de canal de ofertas
-    "ViajandoBaratoArg",       # Ejemplo
     "Ratamundo",               # Ratamundo
     "AirTrackBot",            #AirTrackBot
     "turismocityar",            #turismocityar
