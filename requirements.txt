@@ -4,3 +4,4 @@ beautifulsoup4
 playwright
 urllib3
 tzdata
+telethon
