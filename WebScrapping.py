@@ -13,6 +13,7 @@ from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
 from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
+from telethon import TelegramClient, events
 
 # Desactivar advertencias SSL
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -24,6 +25,9 @@ TZ_ARG = timezone(timedelta(hours=-3))
 
 TELEGRAM_BOT_TOKEN = "8913372178:AAGHVEh8g9AnNvvC-UAwrYmFVvOWH9maL0k"  # Reemplazar con tu Token completo
 TELEGRAM_CHAT_ID = "383871975"            # Tu Chat ID verificado
+
+API_ID = int(os.environ.get("TELEGRAM_API_ID", 37460567))
+API_HASH = os.environ.get("TELEGRAM_API_HASH", "bd5ba9f63a136d8186e88dbfd9d9f9ac")
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
@@ -69,6 +73,18 @@ DOMESTIC_DESTINATION_PATTERNS = [
     r"\bcabotaje\b", r"\bnacionales\b"
 ]
 
+CHANNELS_TO_MONITOR = [
+    "PromocionesAereas",      # Ejemplo de canal de ofertas
+    "ViajandoBaratoArg",       # Ejemplo
+    "Ratamundo",               # Ratamundo
+    "AirTrackBot",            #AirTrackBot
+    "turismocityar",            #turismocityar
+    "guialowcost",                #guialowcost
+    "viajerospiratas",        #viajerospiratas
+    "holidayguru_es",        #holidayguru_es 
+    "SecretFlying"             # Ejemplo internacional
+]
+
 seen_urls = set()
 
 def is_relevant_deal(text: str) -> bool:
@@ -101,31 +117,34 @@ def check_and_log_deal(title: str, price: str, url: str, source: str):
     extracted_price = price
     if not extracted_price:
         # Expresión regular ajustada para capturar U$D 69, U$D 888, $120.000, etc.
-        price_regex = r'(?:u\$d|usd|u\$s|\$|€)\s?[\d\.\,]+'
+        price_regex = r'(?:u\$d|usd|u\$s|\$|€|£)\s?[\d\.\,]+'
         match = re.search(price_regex, title, re.IGNORECASE)
         if match:
             extracted_price = match.group(0)
 
     # 2. Palabras clave de origen y destino
-    origenes_arg = [
-        "buenos aires", "ezeiza", "aeroparque", "cordoba", "córdoba", 
-        "mendoza", "argentina", "rosario", "salida desde", "desde"
+    origenes = [
+        # Español
+        "buenos aires", "ezeiza", "aeroparque", "cordoba", "córdoba", "mendoza", 
+        "argentina", "rosario", "desde", 
+        # Inglés / Internacional
+        "from", "flights from", "departing", "non-stop", "roundtrip", "round-trip"
     ]
     destinos = [
         "bariloche", "salta", "iguazu", "iguazú", "ushuaia", "calafate", "tucuman", "tucumán"
         "jujuy", "mendoza", "cordoba", "córdoba", "neuquen", "neuquén", "catamarca", "san juan", "salta"
-        "cabotaje", "nacionales", "europa", "asia", "madrid", "barcelona", 
+        "cabotaje", "nacionales", "europa", "europe", "asia", "madrid", "barcelona", 
         "roma", "milan", "milán", "paris", "parís", "londres", "tokio", 
-        "tokyo", "bangkok", "estambul", "rio", "río", "miami"
+        "tokyo", "bangkok", "estambul", "istanbul", "rio", "río", "miami"
     ]
 
     # Comprobar si menciona Argentina o algún destino de la lista
-    es_origen_arg = any(o in title_lower for o in origenes_arg)
+    es_origen_arg = any(o in title_lower for o in origenes)
     es_destino_valido = any(d in title_lower for d in destinos)
 
     # 3. Impresión en consola (Para monitorear precios de mercado)
     # Si la fuente es un blog argentino (Sir Chandler, Promociones Aéreas), mostramos directamente el post
-    fuentes_locales = ["promociones aéreas", "sir chandler", "ratamundo", "infoviajera"]
+    fuentes_locales = ["promociones aéreas", "sir chandler", "ratamundo", "infoviajera", "holidaypirates", "flyertalk"]
     es_fuente_local = any(f in source.lower() for f in fuentes_locales)
 
     if (es_origen_arg and es_destino_valido) or es_fuente_local:
@@ -229,6 +248,32 @@ def send_telegram_alert(title: str, url: str = "", source: str = "Sistema", pric
             else:
                 print(f"[!] Error de conexión con Telegram tras {retries} intentos.")
 
+# ==========================================
+# ESCUCHADOR EN TIEMPO REAL DE TELEGRAM
+# ==========================================
+client = TelegramClient("session_monitor", API_ID, API_HASH)
+
+@client.on(events.NewMessage(chats=CHANNELS_TO_MONITOR))
+async def handle_new_channel_message(event):
+    message_text = event.message.text
+    if not message_text:
+        return
+        
+    lines = message_text.strip().split("\n")
+    title = lines[0] if lines else "Oferta de Telegram"
+    
+    chat = await event.get_chat()
+    channel_username = chat.username
+    message_id = event.message.id
+    post_url = f"https://t.me/{channel_username}/{message_id}"
+    
+    check_and_log_deal(
+        title=title,
+        price=None,
+        url=post_url,
+        source=f"Telegram: @{channel_username}"
+    )
+    
 # -------------------------------------------------------------------
 # 1. MONITOREO RSS (FlyerTalk, HolidayPirates, Promociones Aéreas)
 # -------------------------------------------------------------------
@@ -389,6 +434,14 @@ threading.Thread(target=run_health_check_server, daemon=True).start()
 async def main():
     print("🚀 Monitor de Error Fares activado (Origen: Sudamérica | Destino: Europa / Asia)...", flush=True)
     
+    # Iniciar la escucha en tiempo real de canales de Telegram en segundo plano
+    if API_ID and API_HASH:
+        try:
+            await client.start()
+            print("[+] Listener de canales de Telegram iniciado con éxito.", flush=True)
+        except Exception as e:
+            print(f"[!] Error al iniciar el cliente de Telethon: {e}", flush=True)
+    
     ciclo = 1
     while True:
         timestamp = time.strftime("%H:%M:%S")
@@ -417,17 +470,19 @@ async def main():
             print(f"[!] Error en tarea Going: {e}", flush=True)
             
         print(f"[⏳] Ciclo #{ciclo} finalizado. Esperando 5 minutos para el próximo escaneo...", flush=True)
-        ciclo += 1
 
-        # Al terminar todas las tareas del ciclo:
+        # Enviar heartbeat a Telegram
         try:
             mensaje_ping = f"✅ Ciclo #{ciclo} finalizado correctamente a las {timestamp}. Bot activo."
             send_telegram_alert(title=mensaje_ping, url="", source="Monitor Render")
         except Exception as e:
             print(f"[!] Error al enviar heartbeat a Telegram: {e}", flush=True)
     
-        # Pausa de 5 minutos
+        ciclo += 1
+
+        # Pausa asíncrona de 5 minutos (mantiene activo el listener de Telegram)
         await asyncio.sleep(300)
 
 if __name__ == "__main__":
     asyncio.run(main())
+    
