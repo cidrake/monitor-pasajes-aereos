@@ -315,46 +315,91 @@ async def iniciar_telegram():
     print("[+] Listener de Telegram iniciado correctamente.", flush=True)
 
 # -------------------------------------------------------------------
+# ESCANEO ACTIVO DE CANALES DE TELEGRAM
+# -------------------------------------------------------------------
+async def fetch_telegram_channels():
+    if not client.is_connected():
+        try:
+            await client.connect()
+        except Exception as e:
+            print(f"[!] Error al conectar cliente de Telegram: {e}", flush=True)
+            return
+
+    print("[+] Escaneando canales de Telegram...", flush=True)
+    for channel_name in CHANNELS_TO_MONITOR:
+        try:
+            entity = await client.get_entity(channel_name)
+            messages = await client.get_messages(entity, limit=5)
+            encontrados = 0
+            
+            for msg in messages:
+                texto = msg.raw_text or ""
+                if not texto:
+                    continue
+                
+                # Identificador único para evitar duplicados en Telegram
+                msg_id = f"tg_{entity.id}_{msg.id}"
+                if msg_id not in seen_urls:
+                    seen_urls.add(msg_id)
+                    encontrados += 1
+                    check_and_log_deal(
+                        title=texto[:100].replace("\n", " "),
+                        price=None,
+                        url="",
+                        source=f"Telegram (@{channel_name})"
+                    )
+            print(f"   -> [Telegram] @{channel_name}: {encontrados} mensajes nuevos procesados.", flush=True)
+        except Exception as e:
+            print(f"   -> [Telegram] Error al leer @{channel_name}: {e}", flush=True)
+            
+# -------------------------------------------------------------------
 # BUCLE PRINCIPAL (5 MINUTOS)
 # -------------------------------------------------------------------
 async def main():
-    print("🚀 Monitor de Error Fares activado (Origen: Sudamérica | Destino: Europa / Asia)...", flush=True)
+    print("🚀 Monitor de Error Fares activado...", flush=True)
     
-    # 1. Iniciar el listener de Telethon
-    asyncio.create_task(iniciar_telegram())
-    
+    # Iniciar cliente de Telethon de forma asíncrona
+    try:
+        await client.start()
+        print("[+] Cliente Telethon autenticado correctamente.", flush=True)
+    except Exception as e:
+        print(f"[!] Error iniciando Telethon (posible falta de StringSession/Interactive Auth): {e}", flush=True)
+
     ciclo = 1
     while True:
         timestamp = time.strftime("%H:%M:%S")
         print(f"\n==================== CICLO #{ciclo} [{timestamp}] ====================", flush=True)
         
+        # 1. Escaneo de RSS
         try:
             await asyncio.to_thread(fetch_rss_feeds_sync)
         except Exception as e:
             print(f"[!] Error en tarea RSS: {e}", flush=True)
+
+        # 2. Escaneo activo de Telegram
+        try:
+            await fetch_telegram_channels()
+        except Exception as e:
+            print(f"[!] Error en tarea Telegram: {e}", flush=True)
             
+        # 3. Escaneo de Sitios Dinámicos (Playwright)
         try:
             await asyncio.wait_for(fetch_playwright_sites(), timeout=120.0)
         except asyncio.TimeoutError:
-            print("[!] Timeout en sitios Playwright (excedió 120s). Saltando...", flush=True)
+            print("[!] Timeout en sitios Playwright. Saltando...", flush=True)
         except Exception as e:
-            print(f"[!] Error en tarea Playwright sitios: {e}", flush=True)
+            print(f"[!] Error en tarea Playwright: {e}", flush=True)
 
+        # 4. Escaneo de Going
         try:
             await asyncio.wait_for(fetch_going_headless(), timeout=45.0)
         except asyncio.TimeoutError:
-            print("[!] Timeout en Going (excedió 45s). Saltando...", flush=True)
+            print("[!] Timeout en Going. Saltando...", flush=True)
         except Exception as e:
             print(f"[!] Error en tarea Going: {e}", flush=True)
             
-        print(f"[⏳] Ciclo #{ciclo} finalizado. Esperando 5 minutos para el próximo escaneo...", flush=True)
-
-        try:
-            mensaje_ping = f"✅ Ciclo #{ciclo} finalizado correctamente a las {timestamp}. Bot activo."
-            send_telegram_alert(title=mensaje_ping, url="", source="Monitor Render")
-        except Exception as e:
-            print(f"[!] Error al enviar heartbeat a Telegram: {e}", flush=True)
-    
+        print(f"[⏳] Ciclo #{ciclo} finalizado. Esperando 5 minutos...", flush=True)
+        
         ciclo += 1
         await asyncio.sleep(300)
 
