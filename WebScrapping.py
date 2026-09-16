@@ -84,6 +84,20 @@ CHANNELS_TO_MONITOR = [
     "SecretFlights"
 ]
 
+SPAM_PATTERNS = [
+    r"sayachan", r"18\+", r"porno", r"adult", r"sex", r"casino", r"crypto", r"bet"
+]
+
+def is_spam(text: str) -> bool:
+    text_lower = text.lower()
+    # Detecta alfabeto cirílico
+    if re.search(r'[\u0400-\u04FF]', text_lower):
+        return True
+    # Detecta palabras prohibidas
+    if any(re.search(p, text_lower) for p in SPAM_PATTERNS):
+        return True
+    return False
+    
 seen_urls = set()
 
 # -------------------------------------------------------------------
