@@ -12,6 +12,7 @@ from playwright.async_api import async_playwright
 from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 from telethon import TelegramClient, events
+from telethon.sessions import StringSession
 
 # Desactivar advertencias SSL
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -26,12 +27,16 @@ TELEGRAM_CHAT_ID = "383871975"
 
 API_ID = int(os.environ.get("TELEGRAM_API_ID", 37460567))
 API_HASH = os.environ.get("TELEGRAM_API_HASH", "bd5ba9f63a136d8186e88dbfd9d9f9ac")
+STRING_SESSION = os.environ.get("TELEGRAM_STRING_SESSION", "")
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
     "Accept-Language": "es-AR,es;q=0.9,en-US;q=0.8,en;q=0.7",
 }
+
+# Inicializar cliente con StringSession
+client = TelegramClient(StringSession(STRING_SESSION), API_ID, API_HASH)
 
 # -------------------------------------------------------------------
 # MATRIZ DE FILTRADO
@@ -318,6 +323,10 @@ async def iniciar_telegram():
 # ESCANEO ACTIVO DE CANALES DE TELEGRAM
 # -------------------------------------------------------------------
 async def fetch_telegram_channels():
+    if not STRING_SESSION:
+        print("[!] TELEGRAM_STRING_SESSION no está definida. Omitiendo escaneo de Telegram.", flush=True)
+        return
+
     if not client.is_connected():
         try:
             await client.connect()
@@ -337,7 +346,6 @@ async def fetch_telegram_channels():
                 if not texto:
                     continue
                 
-                # Identificador único para evitar duplicados en Telegram
                 msg_id = f"tg_{entity.id}_{msg.id}"
                 if msg_id not in seen_urls:
                     seen_urls.add(msg_id)
@@ -348,7 +356,7 @@ async def fetch_telegram_channels():
                         url="",
                         source=f"Telegram (@{channel_name})"
                     )
-            print(f"   -> [Telegram] @{channel_name}: {encontrados} mensajes nuevos procesados.", flush=True)
+            print(f"   -> [Telegram] @{channel_name}: {encontrados} mensajes procesados.", flush=True)
         except Exception as e:
             print(f"   -> [Telegram] Error al leer @{channel_name}: {e}", flush=True)
             
