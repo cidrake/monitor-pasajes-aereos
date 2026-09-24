@@ -22,11 +22,11 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # -------------------------------------------------------------------
 TZ_ARG = timezone(timedelta(hours=-3))
 
-TELEGRAM_BOT_TOKEN = "8913372178:AAGHVEh8g9AnNvvC-UAwrYmFVvOWH9maL0k"
-TELEGRAM_CHAT_ID = "383871975"
+TELEGRAM_BOT_TOKEN = "8787999454:AAHmER6NU0Jqa0TumAdNU1xv52FO1izcbME"
+TELEGRAM_CHAT_ID = "8864102060"
 
-API_ID = int(os.environ.get("TELEGRAM_API_ID", 37460567))
-API_HASH = os.environ.get("TELEGRAM_API_HASH", "bd5ba9f63a136d8186e88dbfd9d9f9ac")
+API_ID = int(os.environ.get("TELEGRAM_API_ID", 28066016))
+API_HASH = os.environ.get("TELEGRAM_API_HASH", "6d34af849c18d77b4e690ef7dee75753")
 STRING_SESSION = os.environ.get("TELEGRAM_STRING_SESSION", "")
 
 HEADERS = {
